@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Enlaces de clientas (/receta/...) y cualquier otra ruta abren la app.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
