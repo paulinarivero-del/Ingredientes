@@ -1,4 +1,5 @@
 // Lógica del recetario compartida por la función de Netlify (adaptada de server.ts).
+import { chilenizar } from '../../src/utils/chileTerms';
 type ThermomixModel = 'TM6' | 'TM7';
 type IngredientStatus = 'pending' | 'have' | 'missing';
 
@@ -639,7 +640,14 @@ async function extractCookidoo(rawUrl: string): Promise<Response> {
       );
     }
     const html = await response.text();
-    const extracted = extractRecipeFromHtml(html, parsedUrl.toString());
+    const raw = extractRecipeFromHtml(html, parsedUrl.toString());
+    // Nombres de ingredientes y términos como se usan en Chile.
+    const extracted = {
+      ...raw,
+      title: raw.title ? chilenizar(raw.title) : raw.title,
+      ingredients: raw.ingredients.map((i) => ({ ...i, text: chilenizar(i.text) })),
+      steps: raw.steps.map((st) => ({ ...st, text: chilenizar(st.text) })),
+    };
     const hasTitle = Boolean(extracted.title && !/login|iniciar sesi[oó]n|cookidoo/i.test(extracted.title));
     const hasIngredients = extracted.ingredients.length > 0;
     const hasSteps = extracted.steps.length > 0;
