@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Check, ClipboardCopy, ListChecks, RotateCcw, ShoppingBasket, Trash2, Undo2 } from 'lucide-react';
+import { Check, ClipboardCopy, ListChecks, Pencil, RotateCcw, ShoppingBasket, Trash2, Undo2 } from 'lucide-react';
 import { Recipe } from '../types/recipe';
+import { chilenizar } from '../utils/chileTerms';
 
 interface ShoppingListBuilderProps {
   recipes: Recipe[];
@@ -11,6 +12,7 @@ interface ListItem {
   key: string;
   label: string;
   sources: string[];
+  original?: string;
 }
 
 const STORAGE_KEY = 'lista-general-paulina-v2';
@@ -69,7 +71,8 @@ function buildList(selected: Recipe[]): ListItem[] {
 
   for (const recipe of selected) {
     for (const ing of recipe.ingredients) {
-      const parsed = parseIngredient(ing.text);
+      const text = chilenizar(ing.text);
+      const parsed = parseIngredient(text);
       if (parsed) {
         const key = `q|${parsed.unit}|${normalize(parsed.name)}`;
         const prev = merged.get(key);
@@ -81,12 +84,12 @@ function buildList(selected: Recipe[]): ListItem[] {
           order.push(key);
         }
       } else {
-        const key = `t|${normalize(ing.text)}`;
+        const key = `t|${normalize(text)}`;
         const prev = plain.get(key);
         if (prev) {
           if (!prev.sources.includes(recipe.title)) prev.sources.push(recipe.title);
         } else {
-          plain.set(key, { key, label: ing.text.trim(), sources: [recipe.title] });
+          plain.set(key, { key, label: text.trim(), sources: [recipe.title] });
           order.push(key);
         }
       }
@@ -104,6 +107,7 @@ interface SavedState {
   selected: string[];
   mine: string[];
   removed: string[];
+  names: Record<string, string>;
 }
 
 function loadSaved(): SavedState {
@@ -115,18 +119,19 @@ function loadSaved(): SavedState {
         selected: Array.isArray(parsed.selected) ? parsed.selected : [],
         mine: Array.isArray(parsed.mine) ? parsed.mine : [],
         removed: Array.isArray(parsed.removed) ? parsed.removed : [],
+        names: parsed.names && typeof parsed.names === 'object' ? parsed.names : {},
       };
     }
     // Versión anterior: conserva las recetas elegidas.
     const old = localStorage.getItem(OLD_STORAGE_KEY);
     if (old) {
       const parsed = JSON.parse(old);
-      return { selected: Array.isArray(parsed.selected) ? parsed.selected : [], mine: [], removed: [] };
+      return { selected: Array.isArray(parsed.selected) ? parsed.selected : [], mine: [], removed: [], names: {} };
     }
   } catch {
     // sin almacenamiento disponible
   }
-  return { selected: [], mine: [], removed: [] };
+  return { selected: [], mine: [], removed: [], names: {} };
 }
 
 const listText = (title: string, list: ListItem[]) =>
@@ -137,12 +142,15 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
   const [selectedIds, setSelectedIds] = useState<string[]>(saved.selected);
   const [mineKeys, setMineKeys] = useState<string[]>(saved.mine);
   const [removedKeys, setRemovedKeys] = useState<string[]>(saved.removed);
+  const [names, setNames] = useState<Record<string, string>>(saved.names);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
 
   const persist = (next: Partial<SavedState>) => {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ selected: selectedIds, mine: mineKeys, removed: removedKeys, ...next })
+        JSON.stringify({ selected: selectedIds, mine: mineKeys, removed: removedKeys, names, ...next })
       );
     } catch {
       // sin almacenamiento disponible
@@ -151,7 +159,10 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
 
   const selectedRecipes = recipes.filter((r) => selectedIds.includes(r.id));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => buildList(selectedRecipes), [recipes, selectedIds]);
+  const items = useMemo(
+    () => buildList(selectedRecipes).map((i) => (names[i.key] ? { ...i, label: names[i.key], original: i.label } : i)),
+    [recipes, selectedIds, names]
+  );
   const visible = items.filter((i) => !removedKeys.includes(i.key));
   const removed = items.filter((i) => removedKeys.includes(i.key));
   const mine = visible.filter((i) => mineKeys.includes(i.key));
@@ -191,6 +202,30 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
     setMineKeys([]);
     setRemovedKeys([]);
     persist({ mine: [], removed: [] });
+  };
+
+  const startEdit = (item: ListItem) => {
+    setEditingKey(item.key);
+    setDraft(item.label);
+  };
+
+  const saveName = (item: ListItem) => {
+    const value = draft.trim();
+    const next = { ...names };
+    const base = item.original ?? item.label;
+    if (!value || value === base) delete next[item.key];
+    else next[item.key] = value;
+    setNames(next);
+    persist({ names: next });
+    setEditingKey(null);
+  };
+
+  const restoreName = (key: string) => {
+    const next = { ...names };
+    delete next[key];
+    setNames(next);
+    persist({ names: next });
+    setEditingKey(null);
   };
 
   const clientText = listText('🛒 *Lo que necesitas tener para nuestra clase de cocina*', client) +
@@ -295,8 +330,44 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
               <ul className="divide-y divide-[#E4E1D8]">
                 {visible.map((i) => {
                   const isMine = mineKeys.includes(i.key);
+                  if (editingKey === i.key) {
+                    return (
+                      <li key={i.key} className="py-2.5">
+                        <form
+                          className="flex flex-wrap items-center gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            saveName(i);
+                          }}
+                        >
+                          <input
+                            autoFocus
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            aria-label="Nuevo nombre del ingrediente"
+                            className="flex-1 min-w-[12rem] min-h-[44px] px-3 rounded-xl border border-[#2D6A4F] text-base text-[#1A241E] bg-white"
+                          />
+                          <button type="submit" className={btnMain}>
+                            Guardar
+                          </button>
+                          <button type="button" onClick={() => setEditingKey(null)} className={btnSoft}>
+                            Cancelar
+                          </button>
+                          {i.original && (
+                            <button
+                              type="button"
+                              onClick={() => restoreName(i.key)}
+                              className="min-h-[44px] px-2 text-sm font-medium text-[#5A665E] hover:text-[#1A241E] cursor-pointer"
+                            >
+                              Volver a «{i.original}»
+                            </button>
+                          )}
+                        </form>
+                      </li>
+                    );
+                  }
                   return (
-                    <li key={i.key} className="flex items-start gap-2 py-2.5">
+                    <li key={i.key} className="flex items-start gap-1 py-2.5">
                       <button
                         type="button"
                         onClick={() => toggleMine(i.key)}
@@ -320,9 +391,19 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
                           </span>
                           <span className="block text-xs text-[#5A665E] mt-0.5">
                             {isMine ? 'Lo llevo yo · ' : ''}
+                            {i.original ? 'Nombre editado · ' : ''}
                             {i.sources.join(' · ')}
                           </span>
                         </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startEdit(i)}
+                        aria-label={`Editar nombre de ${i.label}`}
+                        title="Editar nombre"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center text-[#9AA39C] hover:text-[#2D6A4F] hover:bg-[#2D6A4F]/10 cursor-pointer shrink-0"
+                      >
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -338,7 +419,7 @@ export function ShoppingListBuilder({ recipes, onCopySuccess }: ShoppingListBuil
                 })}
               </ul>
               <p className="text-xs text-[#5A665E]">
-                Toca un ingrediente para marcar «Lo llevo yo». El basurero lo borra de las dos listas.
+                Toca un ingrediente para marcar «Lo llevo yo». El lápiz cambia su nombre y el basurero lo borra de las dos listas.
               </p>
               {removed.length > 0 && (
                 <details className="rounded-2xl bg-[#F3F1EB] px-4 py-2">
