@@ -6,7 +6,7 @@ interface HeaderProps {
   onNewRecipe: () => void;
   onOpenShareModal: () => void;
   onOpenLibrary: () => void;
-  activeView: 'recipe' | 'library' | 'editor';
+  activeView: 'recipe' | 'library' | 'editor' | 'shopping';
 }
 
 export function Header({
