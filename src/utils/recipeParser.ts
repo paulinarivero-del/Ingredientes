@@ -1,4 +1,5 @@
 import { IngredientItem, Recipe, RecipeStep } from '../types/recipe';
+import { chilenizar } from './chileTerms';
 
 export function createId(prefix = 'id'): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -51,7 +52,7 @@ export function parseBulkIngredients(rawText: string): IngredientItem[] {
 
     items.push({
       id: createId('ing'),
-      text: cleaned,
+      text: chilenizar(cleaned),
       note,
       status: 'pending',
     });
@@ -93,7 +94,7 @@ export function parseBulkSteps(rawText: string): RecipeStep[] {
     steps.push({
       id: createId('step'),
       order: steps.length + 1,
-      text: stepText,
+      text: chilenizar(stepText),
       thermomixParams,
     });
   }
