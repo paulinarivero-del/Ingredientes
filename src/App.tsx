@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, ChefHat, CheckCircle2, Plus } from 'lucide-react';
+import { BookOpen, ChefHat, CheckCircle2, Plus, ShoppingBasket } from 'lucide-react';
 import { Header } from './components/Header';
 import { IngredientsChecklist } from './components/IngredientsChecklist';
 import { PreparationSteps } from './components/PreparationSteps';
@@ -7,6 +7,7 @@ import { RecipeEditorForm } from './components/RecipeEditorForm';
 import { RecipeHero } from './components/RecipeHero';
 import { RecipeLibrary } from './components/RecipeLibrary';
 import { ShareLinkModal } from './components/ShareLinkModal';
+import { ShoppingListBuilder } from './components/ShoppingListBuilder';
 import { useWakeLock } from './hooks/useWakeLock';
 import {
   IngredientItem,
@@ -32,7 +33,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [activeView, setActiveView] = useState<'recipe' | 'library' | 'editor'>('recipe');
+  const [activeView, setActiveView] = useState<'recipe' | 'library' | 'editor' | 'shopping'>('recipe');
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isEditorRole, setIsEditorRole] = useState(true);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -358,6 +359,22 @@ export default function App() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setActiveView('shopping');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                  activeView === 'shopping'
+                    ? 'bg-white text-[#1A241E] shadow-xs border border-[#E4E1D8]'
+                    : 'text-[#5A665E] hover:text-[#1A241E]'
+                }`}
+              >
+                <ShoppingBasket className="w-4 h-4 text-[#2D6A4F]" aria-hidden="true" />
+                <span>Lista general</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={openNewRecipeEditor}
                 className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
                   activeView === 'editor' && !editingRecipe
@@ -407,6 +424,8 @@ export default function App() {
               setActiveView('recipe');
             }}
           />
+        ) : activeView === 'shopping' && !isClientRoute ? (
+          <ShoppingListBuilder recipes={recipes} onCopySuccess={showToast} />
         ) : activeView === 'library' && !isClientRoute ? (
           <RecipeLibrary
             recipes={recipes}
